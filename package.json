@@ -9,6 +9,7 @@
     "start": "tsc && node index calculator.json",
     "release": "tsc && npm publish"
   },
+  "repository": "https://github.com/HtetLinMaung/starless-unit-test.git",
   "bin": "./index.js",
   "keywords": [],
   "author": "",
