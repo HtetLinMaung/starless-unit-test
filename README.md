@@ -65,6 +65,37 @@ You can also test for api endpoints. Response format for api is like this `{data
 }
 ```
 
+## Test With Browser
+
+You can also test from browser. [Puppeteer](https://github.com/puppeteer/puppeteer) is used for testing with browser.
+
+```json
+{
+  "Is starless unit test package existed?": {
+    "type": "browser",
+    "expect": [
+      {
+        "action": "goto",
+        "args": [
+          "'https://www.npmjs.com/package/starless-unit-test'",
+          {
+            "waitUntil": "networkidle2"
+          }
+        ]
+      },
+      {
+        "action": "evaluate",
+        "args": [
+          "(selector) => {return document.querySelector(selector).textContent;}",
+          "'#readme h1'"
+        ]
+      }
+    ],
+    "toBe": "'Starless Unit Test'"
+  }
+}
+```
+
 ## More Resources
 
 Jest is internally used for unit testing. You can see more at [Jest](https://jestjs.io/)

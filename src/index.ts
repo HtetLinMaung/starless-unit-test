@@ -4,13 +4,15 @@ import path from "node:path";
 import fs from "node:fs";
 import { exec } from "code-alchemy/child_process";
 import httpClient from "starless-http";
+// import isModuleExisted from "./utils/is-module-existed";
+import puppeteer from "puppeteer";
 
 const args = process.argv.slice(2);
 const cwd = process.cwd();
 const packageJsonPath = path.join(cwd, "package.json");
 
 const testJsonFileName =
-  args[0].includes("--") || !args[0] ? "test.json" : args[0];
+  !args.length || !args[0] || args[0].includes("--") ? "test.json" : args[0];
 const testJsonFile = path.join(cwd, testJsonFileName);
 
 const keys = [
@@ -41,6 +43,9 @@ export interface TestJson {
 }
 
 async function main() {
+  let browser: puppeteer.Browser = null;
+  let page: puppeteer.Page = null;
+
   const json: TestJson = await import(testJsonFile);
   let testScript = "";
   for (const [description, options] of Object.entries(json)) {
@@ -122,7 +127,40 @@ test('${description}', async () => {
     expect(${expectArg}).${operator}(${result});
 });\n
 `;
+    } else if (options.type == "browser") {
+      if (!browser) {
+        browser = await puppeteer.launch({
+          timeout: 0,
+          headless: args.includes("--headless"),
+          // args: ["--no-sandbox", "--disable-setuid-sandbox"],
+          defaultViewport: null,
+        });
+        page = await browser.newPage();
+      }
+
+      let data: any = null;
+      for (const step of options.expect) {
+        data = await page[step.action](...step.args.map((arg) => eval(arg)));
+      }
+
+      let dataStr = "null";
+      if (typeof data == "object") {
+        dataStr = JSON.stringify(data);
+      } else if (typeof data == "string") {
+        dataStr = `'${data}'`;
+      } else {
+        dataStr = data || null;
+      }
+      testScript += `
+test('${description}', async () => {
+    const data = ${dataStr};
+    expect(${expectArg}).${operator}(${result});
+});\n
+`;
     }
+  }
+  if (browser) {
+    await browser.close();
   }
   const testJsFilePath = path.join(
     cwd,

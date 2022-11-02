@@ -40,10 +40,11 @@ const node_path_1 = __importDefault(require("node:path"));
 const node_fs_1 = __importDefault(require("node:fs"));
 const child_process_1 = require("code-alchemy/child_process");
 const starless_http_1 = __importDefault(require("starless-http"));
+const puppeteer_1 = __importDefault(require("puppeteer"));
 const args = process.argv.slice(2);
 const cwd = process.cwd();
 const packageJsonPath = node_path_1.default.join(cwd, "package.json");
-const testJsonFileName = args[0].includes("--") || !args[0] ? "test.json" : args[0];
+const testJsonFileName = !args.length || !args[0] || args[0].includes("--") ? "test.json" : args[0];
 const testJsonFile = node_path_1.default.join(cwd, testJsonFileName);
 const keys = [
     "toBe",
@@ -60,6 +61,8 @@ const keys = [
 const operators = [...keys, ...keys.map((key) => `not.${key}`)];
 function main() {
     return __awaiter(this, void 0, void 0, function* () {
+        let browser = null;
+        let page = null;
         const json = yield Promise.resolve().then(() => __importStar(require(testJsonFile)));
         let testScript = "";
         for (const [description, options] of Object.entries(json)) {
@@ -137,6 +140,39 @@ test('${description}', async () => {
 });\n
 `;
             }
+            else if (options.type == "browser") {
+                if (!browser) {
+                    browser = yield puppeteer_1.default.launch({
+                        timeout: 0,
+                        headless: args.includes("--headless"),
+                        defaultViewport: null,
+                    });
+                    page = yield browser.newPage();
+                }
+                let data = null;
+                for (const step of options.expect) {
+                    data = yield page[step.action](...step.args.map((arg) => eval(arg)));
+                }
+                let dataStr = "null";
+                if (typeof data == "object") {
+                    dataStr = JSON.stringify(data);
+                }
+                else if (typeof data == "string") {
+                    dataStr = `'${data}'`;
+                }
+                else {
+                    dataStr = data || null;
+                }
+                testScript += `
+test('${description}', async () => {
+    const data = ${dataStr};
+    expect(${expectArg}).${operator}(${result});
+});\n
+`;
+            }
+        }
+        if (browser) {
+            yield browser.close();
         }
         const testJsFilePath = node_path_1.default.join(cwd, testJsonFileName.replace(".json", ".test.js"));
         node_fs_1.default.writeFileSync(testJsFilePath, testScript);
